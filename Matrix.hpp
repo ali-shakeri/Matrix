@@ -2,10 +2,6 @@
 #include <array>
 #include <initializer_list>
 
-
-template<typename T, size_t N>
-class Matrix_ref {};
-
 template<typename T, size_t N>
 class Matrix_initializer {};
 
@@ -13,6 +9,70 @@ template<typename T, typename U>
 constexpr bool Convertible() {return true;}
 
 namespace Matrix_impl {
+
+	template<size_t N, typename List>
+	std::array<size_t,N> derive_extents (const List& list)
+	{
+		std::array<size_t,N> a;
+		auto first = a.begin();
+		add_extents<N> (first, list);
+		return a;
+	}
+
+	template<size_t N, typename I, typename List>
+	Enable_if<(N>1),void> add_extents (I& first, const List& list)
+	{
+		assert (check_non_jagged<N>(list));
+		*first++ = list.size();
+		add_extents<N-1> (first, *list.begin());
+	}
+
+	template<size_t N, typename I, typename List>
+	Enable_if<(N==1),void> add_extents (I& first, const List& list)
+	{
+		*first++ = list.size();
+	}
+
+	template <size_t N, typename List>
+	bool check_non_jagged (const List& list)
+	{
+		auto i = list.begin();
+		for (auto j=i+1; j!=list.end(); ++i)
+			if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j)
+				return false;
+		return true;
+	}
+
+	template<int N>
+	void compute_strides (Matrix_slice<N>& ms)
+	{
+		size_t stride = 1;
+		for (int i=N; i>=0; --i) {
+			ms.strides[i] = stride;
+			stride *= ms.extents[i];
+		}
+		ms.size = stride;
+	}
+
+	template<typename T, typename Vec>
+	void insert_flat (std::initializer_list<T> list, Vec& vec)
+	{
+		add_list (list.begin(), list.end(), vec);
+	}
+
+	template<typename T, typename Vec>
+	void add_list (const std::initializer_list<T>* first,
+			       const std::initializer_list<T>* last, Vec& vec)
+	{
+		for ( ; first!=last; ++first)
+			add_list (first->begin(), first->end(), vec);
+	}
+
+	template<typename T, typename Vec>
+		void add_list (const T* first, const T* last, Vec& vec)
+		{
+			vec.insert(vec.end(), first, last);
+		}
 
 }
 
@@ -74,6 +134,33 @@ struct Matrix_slice<2> {
 		return start + i*strides[0] + j;
 	}
 };
+
+
+// ***** Matrix_ref *****//
+template<typename T, size_t N>
+class Matrix_ref {
+public:
+	Matrix_ref (const Matrix_slice<N>& s, T* p) : desc{s}, ptr{p} {}
+	// TODO: complete the body
+private:
+	Matrix_slice<N> desc;
+	T* ptr;
+};
+
+
+// ***** Matrix_init *****//
+template<typename T, size_t N>
+struct Matrix_init {
+	using type = std::initializer_list<typename Matrix_init<T,N-1>::type>
+};
+
+template<typename T>
+struct Matrix_init<T,1> {
+	using type = std::initializer_list<T>;
+};
+
+template<typename T>
+struct Matrix_init<T,0>;
 
 // ***** Matrix *****//
 template<typename T, size_t N>
