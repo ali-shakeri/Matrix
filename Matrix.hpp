@@ -2,9 +2,6 @@
 #include <array>
 #include <initializer_list>
 
-template<typename T, size_t N>
-class Matrix_initializer {};
-
 template<typename T, typename U>
 constexpr bool Convertible() {return true;}
 
@@ -74,7 +71,13 @@ namespace Matrix_impl {
 			vec.insert(vec.end(), first, last);
 		}
 
+	template<typename T, size_t N>
+	using Matrix_initializer = typename Matrix_impl::Matrix_init<T,N>::type;
+// End of Matrix_impl namespace
 }
+
+
+
 
 struct slice {
 	slice () : start(-1), length(-1), stride(1) {}
@@ -211,10 +214,10 @@ template<typename T, size_t N>
 
 template<typename T, size_t N>
 Matrix<T,N>::Matrix(Matrix_initializer<T,N> init) {
-	//desc.extents = Matrix_impl::derive_extents(init);
-	//Matrix_impl::compute_strides (desc);
+	desc.extents = Matrix_impl::derive_extents(init);
+	Matrix_impl::compute_strides (desc);
 	elems.reserve (desc.size);
-	//Matrix_impl::insert_flat (init, elems);
+	Matrix_impl::insert_flat (init, elems);
 	assert (elems.size() = desc.size);
 }
 
@@ -236,8 +239,3 @@ template<typename T, size_t N>
 		return *this;
 	}
 
-
-
-int main(int argc, char **argv) {
-	return 0;
-}
