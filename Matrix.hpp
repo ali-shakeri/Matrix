@@ -3,35 +3,57 @@
 #include <numeric>
 #include <initializer_list>
 #include <type_traits>
+#include <cassert>
 
-//TODO: fix this Convertible return
-template<typename T, typename U>
-using Convertible = typename std::is_convertible<T,U>::value;
-
-template<bool B, typename T = void>
-using Enable_if = typename std::enable_if<B,T>::type;
+//TODO list:
+// * The clases nead not be in namespace Matrix_impl
+// * Matrix_slice still has undefined constructors
+// * Specializtions of Matrix_slice does not work
+// * Matrix_ref should be a clone of Matrix with almost all functions
 
 namespace Matrix_impl {
   
+  // declarations
+  template<size_t N, typename List>
+  std::array<size_t,N> derive_extents (const List&);
+  
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N>1),void> add_extents (Itr&, const List&);
+  
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N==1),void> add_extents (Itr&, const List&);
+  
+  template<size_t N, typename List>
+  bool check_non_jagged (const List&);
+  
+  template<size_t N>
+  struct Matrix_slice;
+  
+  template<size_t N>
+  void compute_strides (Matrix_slice<N>&);
+  
+  
+  
+  // implementations
   template<size_t N, typename List>
   std::array<size_t,N> derive_extents (const List& list)
   {
-    std::array<size_t,N> a;
-    auto first = a.begin();
-    add_extents<N> (first, list);
-    return a;
+//     std::array<size_t,N> a;
+//     auto first = a.begin();
+//     add_extents<N> (first, list);
+//     return a;
   }
   
-  template<size_t N, typename I, typename List>
-  Enable_if<(N>1),void> add_extents (I& first, const List& list)
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N>1),void> add_extents (Itr& first, const List& list)
   {
     assert (check_non_jagged<N>(list));
     *first++ = list.size();
     add_extents<N-1> (first, *list.begin());
   }
   
-  template<size_t N, typename I, typename List>
-  Enable_if<(N==1),void> add_extents (I& first, const List& list)
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N==1),void> add_extents (Itr& first, const List& list)
   {
     *first++ = list.size();
   }
@@ -41,20 +63,20 @@ namespace Matrix_impl {
   {
     auto i = list.begin();
     for (auto j=i+1; j!=list.end(); ++i)
-      if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j)
+      if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j))
         return false;
       return true;
   }
   
-  template<int N>
-  void compute_strides (Matrix_slice<N>& ms)
+  template<size_t N>
+  void compute_strides (Matrix_slice<N>& matrix_slice)
   {
     size_t stride = 1;
     for (int i=N; i>=0; --i) {
-      ms.strides[i] = stride;
-      stride *= ms.extents[i];
+      matrix_slice.strides[i] = stride;
+      stride *= matrix_slice.extents[i];
     }
-    ms.size = stride;
+    matrix_slice.size = stride;
   }
   
   template<typename T, typename Vec>
@@ -76,11 +98,8 @@ namespace Matrix_impl {
   {
     vec.insert(vec.end(), first, last);
   }
-  // End of Matrix_impl namespace
-}
-
-
-
+// End of Matrix_impl namespace
+}  
 
 struct slice {
   slice () : start(-1), length(-1), stride(1) {}
@@ -104,13 +123,16 @@ struct Matrix_slice {
   
   Matrix_slice (size_t offset, std::initializer_list<size_t> extents);
   Matrix_slice (size_t offset, std::initializer_list<size_t> extents,
-                std::initializer_list<size_t> strs);
+                               std::initializer_list<size_t> strides);
   
   template<typename... Dims>
-  Matrix_slice (Dims... dims);
+    Matrix_slice (Dims... dims);
   
-  template<typename... Dims, Enable_if<All(Convertible<Dims, size_t()...)>>
-  size_t operator()(Dims... dims) const;
+  template<typename... Dims>
+    size_t operator()(Dims... dims) const;
+    //TODO: fix the error of following function:
+//   template<typename... Dims, std::enable_if_t<All(std::is_convertible_v<Dims,size_t>()...)> >
+//     size_t operator()(Dims... dims) const;
   
   size_t size;
   size_t start;
@@ -134,13 +156,13 @@ struct Matrix_slice<1> {
   size_t operator()(size_t i) const {return i;}
 };
 
-template<>
-struct Matrix_slice<2> {
-  size_t operator()(size_t i, size_t j) const
-  {
-    return start + i*strides[0] + j;
-  }
-};
+// template<>
+// struct Matrix_slice<2> {
+//   size_t operator()(size_t i, size_t j) const
+//   {
+//     return start + i*strides[0] + j;
+//   }
+// };
 
 
 
@@ -149,7 +171,7 @@ struct Matrix_slice<2> {
 // ***** Matrix_init *****//
 template<typename T, size_t N>
 struct Matrix_init {
-  using type = std::initializer_list<typename Matrix_init<T,N-1>::type>
+  using type = std::initializer_list<typename Matrix_init<T,N-1>::type>;
 };
 
 template<typename T>
@@ -165,23 +187,9 @@ using Matrix_initializer = typename Matrix_init<T,N>::type;
 
 
 
-// ***** Matrix_base *****//
-template<typename T, size_t N>
-class Matrix_base {
-public:
-  static constexpr size_t order = N;
-  using value_type = T;
-  using iterator = typename std::vector<T>::iterator;
-  using const_iterator = typename std::vector<T>::const_iterator;
-  
-
-};
-
-
-
 // ***** Matrix_ref *****//
 template<typename T, size_t N>
-class Matrix_ref : public Matrix_base {
+class Matrix_ref {
 public:
   Matrix_ref (const Matrix_slice<N>& s, T* p) : desc{s}, ptr{p} {}
   // TODO: complete the body
@@ -194,8 +202,13 @@ private:
 
 // ***** Matrix *****//
 template<typename T, size_t N>
-class Matrix : public Matrix_base<T,N> {
+class Matrix {
 public:
+  static constexpr size_t order = N;
+  using value_type = T;
+  using iterator = typename std::vector<T>::iterator;
+  using const_iterator = typename std::vector<T>::const_iterator;
+  
   Matrix () = default;
   Matrix (Matrix &&) = default;
   Matrix& operator=(Matrix &&) = default;
@@ -226,21 +239,21 @@ public:
   T* data () {return elems.data();}
   const T* data () const {return elems.data();}
   
-  // m(i,j,k) subscripting with integers
-  template<typename... Args>
-    Enable_if<Matrix_impl::Requesting_elements<Args...>(), T&>
-    operator()(Args... args);
-  template<typename... Args>
-    Enable_if<Matrix_impl::Requesting_elements<Args...>(), const T&>
-    operator()(Args... args) const;
-  
-  // m(s1,s2,s3) subscripting with slices
-  template<typename... Args>
-    Enable_if<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
-    operator()(const Args&... args);
-  template<typename... Args>
-    Enable_if<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<const T,N>>
-    operator()(Args... args) const;
+//   // m(i,j,k) subscripting with integers
+//   template<typename... Args>
+//     std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), T&>
+//     operator()(Args... args);
+//   template<typename... Args>
+//     std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), const T&>
+//     operator()(Args... args) const;
+//   
+//   // m(s1,s2,s3) subscripting with slices
+//   template<typename... Args>
+//     std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
+//     operator()(const Args&... args);
+//   template<typename... Args>
+//     std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<const T,N>>
+//     operator()(Args... args) const;
   
   // m[i] row access  
   Matrix_ref<T,N-1> operator[](size_t i) {return row(i);}
@@ -258,7 +271,7 @@ public:
   template<typename F>
     Matrix& apply(F);
   template<typename M, typename F>
-    Enable_if<Matrix_type<M>(), Matrix&> apply (const M&, F);
+    std::enable_if_t<std::is_same_v<M,Matrix>, Matrix&> apply (const M&, F);
     
   Matrix& operator=(const T& value)  {return apply([&](T& a){a=value;});}
   Matrix& operator+=(const T& value) {return apply([&](T& a){a+=value;});}
@@ -268,9 +281,9 @@ public:
   Matrix& operator%=(const T& value) {return apply([&](T& a){a%=value;});}
   
   template<typename M>
-    Enable_if<Matrix_type<M>(),Matrix&> operator+=(const M&);
+    std::enable_if_t<std::is_same_v<M,Matrix>, Matrix&> operator+=(const M&);
   template<typename M>
-    Enable_if<Matrix_type<M>(),Matrix&> operator-=(const M&);
+    std::enable_if_t<std::is_same_v<M,Matrix>, Matrix&> operator-=(const M&);
 private:
   Matrix_slice<N> desc;
   std::vector<T> elems;
@@ -278,15 +291,25 @@ private:
 
 template<typename T, size_t N>
   template<typename... Exts>
-  Matrix<T,N>::Matrix(Exts... extents) : desc{extents...}, elems{desc.size} {}
+  Matrix<T,N>::Matrix(Exts... extents) : desc{extents...}, elems(desc.size) {}
 
 template<typename T, size_t N>
 Matrix<T,N>::Matrix(Matrix_initializer<T,N> init) {
-  desc.extents = Matrix_impl::derive_extents(init);
-  Matrix_impl::compute_strides (desc);
-  elems.reserve (desc.size);
-  Matrix_impl::insert_flat (init, elems);
-  assert (elems.size() = desc.size);
+//   desc.extents = Matrix_impl::derive_extents(init);
+//   Matrix_impl::compute_strides (desc);
+//   elems.reserve (desc.size);
+//   Matrix_impl::insert_flat (init, elems);
+//   assert (elems.size() == desc.size);
+}
+
+template<typename T, size_t N>
+Matrix<T,N>& Matrix<T,N>::operator=(Matrix_initializer<T,N> init) {
+//   desc.extents = Matrix_impl::derive_extents(init);
+//   Matrix_impl::compute_strides (desc);
+//   elems.reserve (desc.size);
+//   Matrix_impl::insert_flat (init, elems);
+//   assert (elems.size() == desc.size);
+  return *this;
 }
 
 template<typename T, size_t N>
@@ -294,20 +317,20 @@ template<typename U>
 Matrix<T,N>::Matrix (const Matrix_ref<U,N>& x)
 : desc{x.desc}, elems{x.begin(), x.end()}
 {
-  static_assert(Convertible<U,T>(), "Can not convert: Incompatible types");
+  static_assert(std::is_convertible_v<U,T>(), "Can not convert: Incompatible types");
 }
 
 template<typename T, size_t N>
 template<typename U>
 Matrix<T,N>& Matrix<T,N>::operator=(const Matrix_ref<U,N>& x)
 {
-  static_assert(Convertible<U,T>(), "Can not convert: Incompatible types");
+  static_assert(std::is_convertible_v<U,T>(), "Can not convert: Incompatible types");
   desc = x.desc;
   elems.assign (x.begin(), x.end());
   return *this;
 }
 
-template<typename t, size_t N>
+template<typename T, size_t N>
   template<typename F>
   Matrix<T,N>& Matrix<T,N>::apply(F f)
   {
@@ -315,28 +338,29 @@ template<typename t, size_t N>
     return *this;
   }
   
-template<typename t, size_t N>
+template<typename T, size_t N>
   template<typename M, typename F>
-  Enable_if<Matrix_type<M>,Matrix<T,N>&> Matrix<T,N>::apply(M& m, F f)
+  std::enable_if_t<std::is_same_v<M,Matrix<T,N>>, Matrix<T,N>&>
+  Matrix<T,N>::apply(const M& m, F f)
   {
-    assert(same_extents(desc, m.descriptor());
-    for (auto i=begin(),j=m.begin(); i!=end(); ++i, ++j)
+    assert(same_extents(desc, m.descriptor()));
+    for (auto i=elems.begin(),j=m.begin(); i!=elems.end(); ++i, ++j)
       f(*i, *j);
     return *this;
   }
   
 template<typename T, size_t N>
   template<typename M>
-  Enable_if<Matrix_type<M>(), Matrix<T,N>&> Matrix<T,N>::operator+=(const M& m)
+  std::enable_if_t<std::is_same_v<M,Matrix<T,N>>, Matrix<T,N>&>
+  Matrix<T,N>::operator+=(const M& m)
   {
     static_assert (m.order==N, "Matrix dimensions do not match");
     assert(same_extents(desc,m.descriptor()));
-    return apply(m, [](T& a, const value_type<M>& b){a+=b});
+    return apply(m, [](T& a, const typename M::value_type& b){a+=b;});
   }
   
-  
-  
-// Matrix operations
+
+// ***** Matrix operations *****//
 namespace Matrix_operations {
   template<typename T>
   T dot_product (const Matrix_ref<T,1>& a, const Matrix_ref<T,1>& b)
@@ -360,14 +384,14 @@ namespace Matrix_operations {
     const size_t m = v.extent(0);
     Matrix<T,2> res(n,m);
     for (size_t i=0; i!=n; ++i)
-      for (size_t j=0; j!m; ++j)
+      for (size_t j=0; j!=m; ++j)
         res(i,j) = u[i]*v[j];
     return res;
   } // TODO: check the overhead discussed in page 839
   
   // Multiply N by M matrix m by a M by 1 vector v, returns a N by 1 vector
   template<typename T>
-  Matrix<T,1> operator*(const Matrix<T,1>& u, const Matrix<T,1>& v)
+  Matrix<T,1> operator*(const Matrix<T,2>& m, const Matrix<T,1>& v)
   {
     assert(m.extent(1)==v.extent(0));
     const size_t nrows = m.extent(0);
@@ -393,5 +417,4 @@ namespace Matrix_operations {
         res(i,j) = dot_product(m1[i], m2.column(j));
     return res;
   }
-  
 }
