@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <type_traits>
 #include <cassert>
+#include <algorithm>
 
 //TODO list:
 // * The clases nead not be in namespace Matrix_impl
@@ -99,7 +100,7 @@ namespace Matrix_impl {
     vec.insert(vec.end(), first, last);
   }
 // End of Matrix_impl namespace
-}  
+}
 
 struct slice {
   slice () : start(-1), length(-1), stride(1) {}
@@ -121,9 +122,9 @@ template<size_t N>
 struct Matrix_slice {
   Matrix_slice () = default;
   
-  Matrix_slice (size_t offset, std::initializer_list<size_t> extents);
-  Matrix_slice (size_t offset, std::initializer_list<size_t> extents,
-                               std::initializer_list<size_t> strides);
+  Matrix_slice (size_t, std::initializer_list<size_t>);
+  Matrix_slice (size_t, std::initializer_list<size_t>,
+                        std::initializer_list<size_t>);
   
   template<typename... Dims>
     Matrix_slice (Dims... dims);
@@ -134,34 +135,70 @@ struct Matrix_slice {
 //   template<typename... Dims, std::enable_if_t<All(std::is_convertible_v<Dims,size_t>()...)> >
 //     size_t operator()(Dims... dims) const;
   
-  size_t size;
-  size_t start;
-  std::array<size_t,N> extents;
-  std::array<size_t,N> strides;
+  size_t size;                    // total number of elements
+  size_t start;                   // starting offset
+  std::array<size_t,N> extents;   // number of elements in each direction
+  std::array<size_t,N> strides;   // offset between elements in each dimension
 };
+
+template<size_t N>
+Matrix_slice<N>::Matrix_slice (size_t start, std::initializer_list<size_t> exts)
+  : start {start}
+{
+  assert(exts.size()==N);
+  std::copy_n(exts.begin(), N, extents.begin());
+  std::fill_n(strides.begin(), N, 1);
+  size = std::accumulate (exts.begin(), exts.end(), 1, std::multiplies<size_t>());
+}
+
+template<size_t N>
+Matrix_slice<N>::Matrix_slice (size_t start, std::initializer_list<size_t> exts,
+  std::initializer_list<size_t> strs) : start{start}
+{
+  assert(exts.size()==N);
+  assert(strs.size()==N);
+  std::copy_n(exts.begin(), N, extents.begin());
+  std::copy_n(strs.begin(), N, strides.begin());
+  size = std::accumulate (exts.begin(), exts.end(), 1, std::multiplies<size_t>());
+}
+
+template<size_t N>
+template<typename... Dims>
+Matrix_slice<N>::Matrix_slice (Dims... dims) : extents {{size_t(dims)...}}
+{
+//   static_assert(sizeof...(Dims)==N, "dimension mismatch");
+}
 
 template<size_t N>
 template<typename... Dims>
 size_t Matrix_slice<N>::operator()(Dims... dims) const
 {
   static_assert(sizeof...(Dims)==N, "dimension mismatch");
-  
-  size_t args[N] {size_t(dims)...};
-  
+  size_t args[N] {size_t(dims)...};  
   return start + std::inner_product(args, args+N, strides.begin(), size_t{0});
 }
 
-template<>
-struct Matrix_slice<1> {
-  size_t operator()(size_t i) const {return i;}
-};
+// template<>
+// struct Matrix_slice<1> {
+//   size_t operator()(size_t i) const {return start + i*stride;}
+//   
+//   size_t size;
+//   size_t start;
+//   size_t extent;
+//   size_t stride;
+// };
 
 // template<>
 // struct Matrix_slice<2> {
 //   size_t operator()(size_t i, size_t j) const
 //   {
-//     return start + i*strides[0] + j;
+//     return start + i*strides[0] + j*strides[1];
 //   }
+//   
+//   size_t size;
+//   size_t start;
+//   std::array<size_t,2> extents;
+//   std::array<size_t,2> strides;
 // };
 
 
