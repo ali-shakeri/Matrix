@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <cassert>
 #include <algorithm>
+#include <iostream>
 
 //TODO list:
 // * The clases nead not be in namespace Matrix_impl
@@ -256,6 +257,7 @@ template<typename T, size_t N>
 Matrix<T,N>::Matrix(Matrix_initializer<T,N> init) {
   desc.extents = Matrix_impl::derive_extents<N> (init);
   Matrix_impl::compute_strides (desc);
+  //TODO desc.size is not correct. why?
   elems.reserve (desc.size);
   Matrix_impl::insert_flat (init, elems);
   assert (elems.size() == desc.size);
@@ -409,10 +411,10 @@ namespace Matrix_impl {
   bool check_non_jagged (const List& list)
   {
     auto i = list.begin();
-    for (auto j=i+1; j!=list.end(); ++i)
+    for (auto j=i+1; j!=list.end(); ++j)
       if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j))
         return false;
-      return true;
+    return true;
   }
   
   template<size_t N>
