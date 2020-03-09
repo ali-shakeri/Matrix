@@ -8,100 +8,67 @@
 
 //TODO list:
 // * The clases nead not be in namespace Matrix_impl
-// * Matrix_slice still has undefined constructors
 // * Specializtions of Matrix_slice does not work
 // * Matrix_ref should be a clone of Matrix with almost all functions
 
+
+// ***** Matrix_init *****//
+template<typename T, size_t N>
+struct Matrix_init {
+  using type = std::initializer_list<typename Matrix_init<T,N-1>::type>;
+};
+
+template<typename T>
+struct Matrix_init<T,1> {
+  using type = std::initializer_list<T>;
+};
+
+template<typename T>
+struct Matrix_init<T,0>;
+
+template<typename T, size_t N>
+using Matrix_initializer = typename Matrix_init<T,N>::type;
+
+
+// declarations  
+template<size_t N>
+struct Matrix_slice;
+
 namespace Matrix_impl {
-  
-  // declarations
   template<size_t N, typename List>
   std::array<size_t,N> derive_extents (const List&);
   
   template<size_t N, typename Itr, typename List>
-  std::enable_if_t<(N>1),void> add_extents (Itr&, const List&);
+  std::enable_if_t<(N>1),void>  add_extents (Itr&, const List&);
   
   template<size_t N, typename Itr, typename List>
-  std::enable_if_t<(N==1),void> add_extents (Itr&, const List&);
+  std::enable_if_t<(N==1),void>  add_extents (Itr&, const List&);
+  
+  template<typename T, typename Vec>
+  void add_list (const std::initializer_list<T>*,
+                 const std::initializer_list<T>*, Vec&);
+  
+  template<typename T, typename Vec>
+  void add_list (const T*, const T*, Vec&);
   
   template<size_t N, typename List>
   bool check_non_jagged (const List&);
   
   template<size_t N>
-  struct Matrix_slice;
-  
-  template<size_t N>
   void compute_strides (Matrix_slice<N>&);
   
+  template<typename... Args>
+  bool Requesting_elements ();
   
-  
-  // implementations
-  template<size_t N, typename List>
-  std::array<size_t,N> derive_extents (const List& list)
-  {
-//     std::array<size_t,N> a;
-//     auto first = a.begin();
-//     add_extents<N> (first, list);
-//     return a;
-  }
-  
-  template<size_t N, typename Itr, typename List>
-  std::enable_if_t<(N>1),void> add_extents (Itr& first, const List& list)
-  {
-    assert (check_non_jagged<N>(list));
-    *first++ = list.size();
-    add_extents<N-1> (first, *list.begin());
-  }
-  
-  template<size_t N, typename Itr, typename List>
-  std::enable_if_t<(N==1),void> add_extents (Itr& first, const List& list)
-  {
-    *first++ = list.size();
-  }
-  
-  template <size_t N, typename List>
-  bool check_non_jagged (const List& list)
-  {
-    auto i = list.begin();
-    for (auto j=i+1; j!=list.end(); ++i)
-      if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j))
-        return false;
-      return true;
-  }
-  
-  template<size_t N>
-  void compute_strides (Matrix_slice<N>& matrix_slice)
-  {
-    size_t stride = 1;
-    for (int i=N; i>=0; --i) {
-      matrix_slice.strides[i] = stride;
-      stride *= matrix_slice.extents[i];
-    }
-    matrix_slice.size = stride;
-  }
+  template<typename... Args>
+  bool Requesting_slice ();
   
   template<typename T, typename Vec>
-  void insert_flat (std::initializer_list<T> list, Vec& vec)
-  {
-    add_list (list.begin(), list.end(), vec);
-  }
-  
-  template<typename T, typename Vec>
-  void add_list (const std::initializer_list<T>* first,
-                 const std::initializer_list<T>* last, Vec& vec)
-  {
-    for ( ; first!=last; ++first)
-      add_list (first->begin(), first->end(), vec);
-  }
-  
-  template<typename T, typename Vec>
-  void add_list (const T* first, const T* last, Vec& vec)
-  {
-    vec.insert(vec.end(), first, last);
-  }
-// End of Matrix_impl namespace
+  void insert_flat (std::initializer_list<T>, Vec&);
 }
 
+
+// TODO do we need this class for 2D Specializtions?
 struct slice {
   slice () : start(-1), length(-1), stride(1) {}
   explicit slice (size_t s) : start(s), length(-1), stride(1) {}
@@ -166,7 +133,8 @@ template<size_t N>
 template<typename... Dims>
 Matrix_slice<N>::Matrix_slice (Dims... dims) : extents {{size_t(dims)...}}
 {
-//   static_assert(sizeof...(Dims)==N, "dimension mismatch");
+  static_assert(sizeof...(Dims)==N, "dimension mismatch");
+  size = std::accumulate (extents.begin(), extents.end(), 1, std::multiplies<size_t>());
 }
 
 template<size_t N>
@@ -177,51 +145,6 @@ size_t Matrix_slice<N>::operator()(Dims... dims) const
   size_t args[N] {size_t(dims)...};  
   return start + std::inner_product(args, args+N, strides.begin(), size_t{0});
 }
-
-// template<>
-// struct Matrix_slice<1> {
-//   size_t operator()(size_t i) const {return start + i*stride;}
-//   
-//   size_t size;
-//   size_t start;
-//   size_t extent;
-//   size_t stride;
-// };
-
-// template<>
-// struct Matrix_slice<2> {
-//   size_t operator()(size_t i, size_t j) const
-//   {
-//     return start + i*strides[0] + j*strides[1];
-//   }
-//   
-//   size_t size;
-//   size_t start;
-//   std::array<size_t,2> extents;
-//   std::array<size_t,2> strides;
-// };
-
-
-
-
-
-// ***** Matrix_init *****//
-template<typename T, size_t N>
-struct Matrix_init {
-  using type = std::initializer_list<typename Matrix_init<T,N-1>::type>;
-};
-
-template<typename T>
-struct Matrix_init<T,1> {
-  using type = std::initializer_list<T>;
-};
-
-template<typename T>
-struct Matrix_init<T,0>;
-
-template<typename T, size_t N>
-using Matrix_initializer = typename Matrix_init<T,N>::type;
-
 
 
 // ***** Matrix_ref *****//
@@ -234,7 +157,6 @@ private:
   Matrix_slice<N> desc;
   T* ptr;
 };
-
 
 
 // ***** Matrix *****//
@@ -276,21 +198,21 @@ public:
   T* data () {return elems.data();}
   const T* data () const {return elems.data();}
   
-//   // m(i,j,k) subscripting with integers
-//   template<typename... Args>
-//     std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), T&>
-//     operator()(Args... args);
-//   template<typename... Args>
-//     std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), const T&>
-//     operator()(Args... args) const;
-//   
-//   // m(s1,s2,s3) subscripting with slices
-//   template<typename... Args>
-//     std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
-//     operator()(const Args&... args);
-//   template<typename... Args>
-//     std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<const T,N>>
-//     operator()(Args... args) const;
+  // m(i,j,k) subscripting with integers
+  template<typename... Args>
+    std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), T&>
+    operator()(Args... args);
+  template<typename... Args>
+    std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), const T&>
+    operator()(Args... args) const;
+  
+  // m(s1,s2,s3) subscripting with slices
+  template<typename... Args>
+    std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
+    operator()(const Args&... args);
+  template<typename... Args>
+    std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<const T,N>>
+    operator()(Args... args) const;
   
   // m[i] row access  
   Matrix_ref<T,N-1> operator[](size_t i) {return row(i);}
@@ -332,20 +254,20 @@ template<typename T, size_t N>
 
 template<typename T, size_t N>
 Matrix<T,N>::Matrix(Matrix_initializer<T,N> init) {
-//   desc.extents = Matrix_impl::derive_extents(init);
-//   Matrix_impl::compute_strides (desc);
-//   elems.reserve (desc.size);
-//   Matrix_impl::insert_flat (init, elems);
-//   assert (elems.size() == desc.size);
+  desc.extents = Matrix_impl::derive_extents<N> (init);
+  Matrix_impl::compute_strides (desc);
+  elems.reserve (desc.size);
+  Matrix_impl::insert_flat (init, elems);
+  assert (elems.size() == desc.size);
 }
 
 template<typename T, size_t N>
 Matrix<T,N>& Matrix<T,N>::operator=(Matrix_initializer<T,N> init) {
-//   desc.extents = Matrix_impl::derive_extents(init);
-//   Matrix_impl::compute_strides (desc);
-//   elems.reserve (desc.size);
-//   Matrix_impl::insert_flat (init, elems);
-//   assert (elems.size() == desc.size);
+  desc.extents = Matrix_impl::derive_extents<N> (init);
+  Matrix_impl::compute_strides (desc);
+  elems.reserve (desc.size);
+  Matrix_impl::insert_flat (init, elems);
+  assert (elems.size() == desc.size);
   return *this;
 }
 
@@ -453,5 +375,88 @@ namespace Matrix_operations {
       for (size_t j=0; j!=p; ++j)
         res(i,j) = dot_product(m1[i], m2.column(j));
     return res;
+  }
+}
+
+
+
+// implementations
+namespace Matrix_impl {
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N>1),void> add_extents (Itr& first, const List& list)
+  {
+    assert (check_non_jagged<N>(list));
+    *first++ = list.size();
+    add_extents<N-1> (first, *list.begin());
+  }
+  
+  template<size_t N, typename Itr, typename List>
+  std::enable_if_t<(N==1),void> add_extents (Itr& first, const List& list)
+  {
+    *first++ = list.size();
+  }
+  
+  template<size_t N, typename List>
+  std::array<size_t,N> derive_extents (const List& list)
+  {
+    std::array<size_t,N> a;
+    auto first = a.begin();
+    add_extents<N> (first, list);
+    return a;
+  }
+
+  template <size_t N, typename List>
+  bool check_non_jagged (const List& list)
+  {
+    auto i = list.begin();
+    for (auto j=i+1; j!=list.end(); ++i)
+      if (derive_extents<N-1>(*i) != derive_extents<N-1>(*j))
+        return false;
+      return true;
+  }
+  
+  template<size_t N>
+  void compute_strides (Matrix_slice<N>& matrix_slice)
+  {
+    size_t stride = 1;
+    for (int i=N; i>=0; --i) {
+      matrix_slice.strides[i] = stride;
+      stride *= matrix_slice.extents[i];
+    }
+    matrix_slice.size = stride;
+  }
+  
+  template<typename T, typename Vec>
+  void insert_flat (std::initializer_list<T> list, Vec& vec)
+  {
+    add_list (list.begin(), list.end(), vec);
+  }
+  
+  template<typename T, typename Vec>
+  void add_list (const std::initializer_list<T>* first,
+                 const std::initializer_list<T>* last, Vec& vec)
+  {
+    for ( ; first!=last; ++first)
+      add_list (first->begin(), first->end(), vec);
+  }
+  
+  template<typename T, typename Vec>
+  void add_list (const T* first, const T* last, Vec& vec)
+  {
+    vec.insert(vec.end(), first, last);
+  }
+  
+  template<typename... Args>
+  bool Requesting_elements ()
+  {
+    //TODO: complete this function
+    return true;
+  }
+  
+  template<typename... Args>
+  bool Requesting_slice ()
+  {
+    //TODO: complete this function
+    return true;
   }
 }
