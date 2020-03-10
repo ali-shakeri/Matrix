@@ -12,6 +12,13 @@
 // * Specializtions of Matrix_slice does not work
 // * Matrix_ref should be a clone of Matrix with almost all functions
 
+constexpr bool All() {return true;}
+
+template<typename... Args>
+constexpr bool All(bool b, Args... args) 
+{
+  return b && All(args...);
+}
 
 // ***** Matrix_init *****//
 template<typename T, size_t N>
@@ -59,13 +66,27 @@ namespace Matrix_impl {
   void compute_strides (Matrix_slice<N>&);
   
   template<typename... Args>
-  bool Requesting_elements ();
+  constexpr bool Requesting_element ();
   
   template<typename... Args>
-  bool Requesting_slice ();
+  constexpr bool Requesting_slice ();
   
   template<typename T, typename Vec>
   void insert_flat (std::initializer_list<T>, Vec&);
+  
+  template<size_t N, typename... Dims>
+  bool check_bounds (const Matrix_slice<N>&, Dims...);
+  
+  template<size_t N, typename T, typename... Args>
+  size_t do_slice (const Matrix_slice<N>&, Matrix_slice<N>&,
+                   const T&, const Args&... );
+  
+  template<size_t N>
+  size_t do_slice(const Matrix_slice<N>&, Matrix_slice<N>&);
+  
+  template<size_t N, typename T, typename... Args>
+  size_t do_slice_dim (const Matrix_slice<N>&, Matrix_slice<N>&, const T&);
+  
 }
 
 
@@ -160,6 +181,7 @@ private:
 };
 
 
+
 // ***** Matrix *****//
 template<typename T, size_t N>
 class Matrix {
@@ -201,10 +223,10 @@ public:
   
   // m(i,j,k) subscripting with integers
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), T&>
+    std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), T&>
     operator()(Args... args);
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_elements<Args...>(), const T&>
+    std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), const T&>
     operator()(Args... args) const;
   
   // m(s1,s2,s3) subscripting with slices
@@ -257,7 +279,6 @@ template<typename T, size_t N>
 Matrix<T,N>::Matrix(Matrix_initializer<T,N> init) {
   desc.extents = Matrix_impl::derive_extents<N> (init);
   Matrix_impl::compute_strides (desc);
-  //TODO desc.size is not correct. why?
   elems.reserve (desc.size);
   Matrix_impl::insert_flat (init, elems);
   assert (elems.size() == desc.size);
@@ -291,6 +312,57 @@ Matrix<T,N>& Matrix<T,N>::operator=(const Matrix_ref<U,N>& x)
   return *this;
 }
 
+
+// m(i,j,k) subscripting with integers
+template<typename T, size_t N>
+  template<typename... Args>
+  std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), T&>
+  Matrix<T,N>::operator()(Args... args)
+  {
+    assert(Matrix_impl::check_bounds(desc, args...));
+    return *(data() + desc(args...));
+  }
+
+// m(s1,s2,s3) subscripting with slices
+template<typename T, size_t N>
+  template<typename... Args>
+  std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
+  Matrix<T,N>::operator()(const Args&... args)
+  {
+    Matrix_slice<N> d;
+    d.start = Matrix_impl::do_slice (desc, d, args...);
+    return {d, data()};
+  }
+
+
+template<typename T, size_t N>
+Matrix_ref<T,N-1> Matrix<T,N>::row (size_t n) 
+{
+//   assert (n<rows());
+  Matrix_slice<N-1> row;
+//   Matrix_impl::slice_dim<0>(n, desc, row);
+  return {row, data()};
+}
+
+// template<typename T>
+// T& Matrix<T,1>::row (size_t n) {return elems[n];}
+// 
+// template<typename T>
+// T& Matrix<T,0>::row (size_t n) = delete;
+
+template<typename T, size_t N>
+Matrix_ref<T,N-1> Matrix<T,N>::col (size_t n) 
+{
+//   assert (n<cols());
+  Matrix_slice<N-1> col;
+//   Matrix_impl::slice_dim<1>(n, desc, col);
+  return {col, data()};
+}
+
+// template<typename T>
+// T& Matrix<T,0>::col (size_t n) = delete;
+
+
 template<typename T, size_t N>
   template<typename F>
   Matrix<T,N>& Matrix<T,N>::apply(F f)
@@ -319,7 +391,43 @@ template<typename T, size_t N>
     assert(same_extents(desc,m.descriptor()));
     return apply(m, [](T& a, const typename M::value_type& b){a+=b;});
   }
+
+template<typename T, size_t N>
+  template<typename M>
+  std::enable_if_t<std::is_same_v<M,Matrix<T,N>>, Matrix<T,N>&>
+  Matrix<T,N>::operator-=(const M& m)
+  {
+    static_assert (m.order==N, "Matrix dimensions do not match");
+    assert(same_extents(desc,m.descriptor()));
+    return apply(m, [](T& a, const typename M::value_type& b){a-=b;});
+  }
+ 
+template<typename T>
+class Matrix<T,0> {
+public:
+  static constexpr size_t order = 0;
+  using value_type = T;
   
+  Matrix (const T& elem) : elem{elem} {}
+  Matrix& operator=(const T& value) 
+  {
+    elem=value;
+    return *this;
+  }
+  T& operator()() {return elem;}
+  const T& operator()() const {return elem;}
+  
+  operator T&() {return elem;}
+  operator const T&() {return elem;}
+  
+  T& col (size_t) = delete;
+  T& row (size_t) = delete;
+private:
+  T elem;
+};
+
+
+
 
 // ***** Matrix operations *****//
 namespace Matrix_operations {
@@ -378,6 +486,20 @@ namespace Matrix_operations {
         res(i,j) = dot_product(m1[i], m2.column(j));
     return res;
   }
+  
+  //TODO: Make it more general: see page 829
+  template<typename T, size_t N>
+  std::ostream& operator<< (std::ostream& os, const Matrix<T,N>& m)
+  {
+    os << '{';
+    for (size_t i=0; i!=rows(m); ++i) {
+      os < m[i];
+      if (i+1 != rows(m)) os << ',';
+    }
+    return os << '}';
+  }
+  
+  
 }
 
 
@@ -421,7 +543,7 @@ namespace Matrix_impl {
   void compute_strides (Matrix_slice<N>& matrix_slice)
   {
     size_t stride = 1;
-    for (int i=N; i>=0; --i) {
+    for (int i=N-1; i>=0; --i) {
       matrix_slice.strides[i] = stride;
       stride *= matrix_slice.extents[i];
     }
@@ -449,16 +571,48 @@ namespace Matrix_impl {
   }
   
   template<typename... Args>
-  bool Requesting_elements ()
+  constexpr bool Requesting_element ()
   {
-    //TODO: complete this function
-    return true;
+    return All(std::is_convertible_v<Args,size_t>()...);
   }
   
   template<typename... Args>
-  bool Requesting_slice ()
+  constexpr bool Requesting_slice ()
   {
-    //TODO: complete this function
-    return true;
+    return All(std::is_convertible_v<Args,size_t>()...);
+//     return All((std::is_convertible_v<Args,size_t>() || Same<Args,slice>())...)
+//       && Some(Same<Args,slice>()...);
   }
+  
+  template<size_t N, typename... Dims>
+  bool check_bounds (const Matrix_slice<N>& slice, Dims... dims)
+  {
+    size_t indexes[N] {size_t(dims)...};
+    return std::equal (indexes, indexes+N, slice.extents.begin(),
+                       std::less<size_t>{});
+  }
+  
+  template<size_t N, typename T, typename... Args>
+  size_t do_slice (const Matrix_slice<N>& os, Matrix_slice<N>& ns, const T& s,
+                   const Args&... args)
+  {
+    size_t m = do_slice_dim<sizeof...(Args)+1> (os, ns, s);
+    size_t n = do_slice (os, ns, args...);
+    return n+m;
+  }
+  
+  template<size_t N>
+  size_t do_slice(const Matrix_slice<N>& os, Matrix_slice<N>& ns)
+  {
+    return 0;
+  }
+  
+
+  template<size_t N, typename T, typename... Args>
+  size_t do_slice_dim (const Matrix_slice<N>& os, Matrix_slice<N>& ns, const T& s)
+  {
+    //TODO: implement this function
+  }
+//   template<>
+//   void slice_dim<0> (size_t n, Matrix_slice<N>&, Matrix_ref<T,N-1> 
 }

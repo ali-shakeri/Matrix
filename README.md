@@ -24,10 +24,25 @@ The first step is to include the following library
 
 Then you can define Tensors, Matrices and Vectors like this:
 ```C++
-  Matrix<int,1> v;                      // A vector of ints
-  Matrix<double,2> m = {{1.,2.,3.},     // A matrix of doubles
-                        {4.,5.,6.}};
-  Matrix<double,3> B(3,2,4);            // A 3 by 2 by 4 tensor of rank 3
+  Matrix<int,1> A;            // A vector of integers
+  
+  Matrix<double,2> B {        // A matrix of doubles
+    {1.,2.,3.},
+    {4.,5.,6.}
+  };
+  
+  Matrix<float,3> C(3,4,2);   // A 3 by 2 by 4 tensor of rank 3
+  
+  Matrix<Matrix<int,2>,2> D { // Nested use of Matrix
+    {
+      {{1,2},{3,4}},
+      {{5,6},{7,8}},
+    },
+    {
+      {{8,7},{5,6}},
+      {{4,3},{2,1}},
+    }
+  };
 ```
 
 
