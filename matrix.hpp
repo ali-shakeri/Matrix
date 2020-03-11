@@ -223,18 +223,18 @@ public:
   
   // m(i,j,k) subscripting with integers
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), T&>
+    std::enable_if_t<(std::is_convertible_v<Args,size_t> && ...), T&>
     operator()(Args... args);
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), const T&>
+    std::enable_if_t<(std::is_convertible_v<Args,size_t> && ...), const T&>
     operator()(Args... args) const;
   
   // m(s1,s2,s3) subscripting with slices
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
+    std::enable_if_t<(std::is_convertible_v<Args,slice> && ...), Matrix_ref<T,N>>
     operator()(const Args&... args);
   template<typename... Args>
-    std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<const T,N>>
+    std::enable_if_t<(std::is_convertible_v<Args,slice> && ...), Matrix_ref<const T,N>>
     operator()(Args... args) const;
   
   // m[i] row access  
@@ -316,7 +316,7 @@ Matrix<T,N>& Matrix<T,N>::operator=(const Matrix_ref<U,N>& x)
 // m(i,j,k) subscripting with integers
 template<typename T, size_t N>
   template<typename... Args>
-  std::enable_if_t<Matrix_impl::Requesting_element<Args...>(), T&>
+  std::enable_if_t<(std::is_convertible_v<Args,size_t> && ...), T&>
   Matrix<T,N>::operator()(Args... args)
   {
     assert(Matrix_impl::check_bounds(desc, args...));
@@ -326,7 +326,7 @@ template<typename T, size_t N>
 // m(s1,s2,s3) subscripting with slices
 template<typename T, size_t N>
   template<typename... Args>
-  std::enable_if_t<Matrix_impl::Requesting_slice<Args...>(), Matrix_ref<T,N>>
+  std::enable_if_t<(std::is_convertible_v<Args,slice> && ...), Matrix_ref<T,N>>
   Matrix<T,N>::operator()(const Args&... args)
   {
     Matrix_slice<N> d;

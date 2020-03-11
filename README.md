@@ -43,6 +43,11 @@ Then you can define Tensors, Matrices and Vectors like this:
       {{4,3},{2,1}},
     }
   };
+  
+  auto E = B;           // copy assignment is defined
+  auto F(B);            // copy constructor is defined
+  
+  auto elem = B(1,2);   // elem is the 1st row and 2nd column of B which is 6.
 ```
 
 

@@ -23,12 +23,13 @@ int main(int argc, char **argv) {
     }
   };
   
-  auto E = B;       // copy assignment is defined
-  auto F(B);        // copy constructor is defined
+  auto E = B;           // copy assignment is defined
+  auto F(B);            // copy constructor is defined
   
-//   error: ‘std::is_convertible_v<int, long unsigned int>’ cannot be used as a function
-//   auto elem = B(1,2);
-//   B (slice{0,1},slice{0}) = {7., 8., 9.};
+  auto elem = B(1,2);   // elem is the 1st row and 2nd column of B which is 6.
+
+  // complete Matrix_ref
+  //   B (slice{0,1},slice{0,1}) = {7., 8., 9.};
   
 //   auto F{B};     // Error: only use of {} for elements
   
