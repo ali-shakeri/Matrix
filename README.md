@@ -22,7 +22,11 @@ The first step is to include the following library
 #include "matrix.hpp"
 ```
 
-Then you can define Tensors, Matrices and Vectors like this:
+You will need C++17 to compile the code.
+
+#### Creating Matrices
+
+You can define Tensors, Matrices and Vectors like this:
 ```C++
   Matrix<int,1> A;            // A vector of integers
   
@@ -50,10 +54,48 @@ Then you can define Tensors, Matrices and Vectors like this:
   auto elem = B(1,2);   // elem is the 1st row and 2nd column of B which is 6.
 ```
 
+#### Matrix operations
+These Matrix operations are defined:
+
+- Matrix multiplication,
+- Addition,
+- Elementwise multiplication
+- Operations (*, /, %, +, ...) with a scalar is defined
+
+These operations are defined in the namespace "Matrix_operations". Therefore, you have use this namespace:
+
+```C++
+  using namespace Matrix_operations;
+```
+
+Here are som examples of how to use Matrix operations:
+```C++
+  Matrix<double,2> v {{1.,0.}};
+  Matrix<double,2> u {{2.,3.}};
+  auto M = u*v;     // M is a tensor resulting from tensor product of two vectors
+  
+  Matrix<double,2> M1 {
+    {1., 0., 3.},
+    {2., 1., 0.}
+  };
+  Matrix<double,2> M2 {
+    {2.,3.},
+    {4.,5.},
+    {6.,1.}
+  };
+  auto K1 = M1*M2;    // K1 is a 2 by 2 Matrix
+  auto K2 = M2*M1;    // K2 is a 3 by 3 Matrix
+
+  //auto L = K1+K2;   // Error: Matrices are not the same size
+```
+
+#### Extension to Linear Algebra operations
+This Matrix class can be extended to do linear algebra calculations such as LU decomposition, Conjugate Gradient and so on.
+
 
 Performance
 -----------
-
+STUDIS should not incur any noticeable overhead at runtime. Most of the dimension checks are performed during compilation and incur no cost at runtime.
 
 
 Acknowledgement
