@@ -22,7 +22,7 @@ The first step is to include the following library
 #include "matrix.hpp"
 ```
 
-You will need C++17 to compile the code.
+You will need C++17 support to compile the code.
 
 #### Creating Matrices
 
@@ -60,7 +60,7 @@ These Matrix operations are defined:
 - Matrix multiplication,
 - Addition,
 - Elementwise multiplication
-- Operations (*, /, %, +, ...) with a scalar is defined
+- Operations (*, /, %, +, ...) with a scalar are defined
 
 These operations are defined in the namespace "Matrix_operations". Therefore, you have use this namespace:
 
