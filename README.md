@@ -95,7 +95,7 @@ This Matrix class can be extended to do linear algebra calculations such as LU d
 
 Performance
 -----------
-STUDIS should not incur any noticeable overhead at runtime. Most of the dimension checks are performed during compilation and incur no cost at runtime.
+Matrix should not incur any noticeable overhead at runtime. Most of the dimension checks are performed during compilation and incur no cost at runtime.
 
 
 Acknowledgement
