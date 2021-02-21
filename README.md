@@ -1,7 +1,7 @@
 Matrix
 ===============================================
 
-The concept of Matrices or Tensors is widely used in mathematical modeling of physical phenomena. For instnace, the stress tensor is a 2nd rank tensor or full Navier-Stokes equations can be written in terms of five dimensional vectors which are 1st rank tensors. Here a Matrix implementation in C++ is provided which can be used for many applications from linear algebra to simulation of physical systems.
+The concept of Matrices and Tensors is widely used in mathematical modeling of physical phenomena. For instnace, the stress tensor is a 2nd rank tensor or full Navier-Stokes equations can be written in terms of five dimensional vectors which are 1st rank tensors. Here a Matrix implementation in C++ is provided which can be used for many applications from linear algebra to simulation of physical systems.
 
 
 Table of contents
